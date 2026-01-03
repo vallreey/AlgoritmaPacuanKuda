@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pacuan Kuda - High Precision Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --blue: #1a73e8; --red: #d93025; --green: #2e7d32; --yellow: #f9ab00; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: var(--bg); color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: var(--blue); margin-bottom: 20px; }
+        
+        .controls { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; padding: 25px; background: #eef4ff; border-radius: 12px; }
+        input { padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px; width: 250px; font-size: 1rem; }
+        button { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: all 0.2s; }
+        .btn-run { background-color: var(--blue); color: white; }
+        .btn-reset { background-color: var(--red); color: white; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+        .btn-sm { padding: 5px 12px; font-size: 0.9rem; margin: 0 2px; }
+        .btn-edit { background-color: var(--yellow); color: white; }
+        .btn-del-row { background-color: #ff5252; color: white; font-size: 0.8rem; padding: 5px 10px; }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .full-width { grid-column: span 2; }
+        .card { border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; background: #fff; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #edf2f7; padding: 12px; text-align: center; font-size: 0.9rem; }
+        th { background-color: #f7fafc; color: #4a5568; font-weight: 600; }
+        
+        .winner-box { background: #f0fff4; border: 2px solid #68d391; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 25px; display: none; animation: fadeIn 0.5s; }
+        .winner-name { color: var(--green); font-size: 1.5rem; font-weight: 800; display: block; margin-top: 5px; }
+        
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 10% auto; padding: 25px; border-radius: 12px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); animation: slideDown 0.3s; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 90%; }
+        .modal-actions { text-align: right; margin-top: 20px; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏁 Simulasi & Analisis Performa Komputer</h1>
+
+    <div class="card full-width" style="margin-bottom: 20px;">
+        <h2>Daftar Kuda & Parameter Fisik</h2>
+        <table id="horseTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nama Kuda</th>
+                    <th>Kecepatan (m/s)</th>
+                    <th>Stamina Maks</th>
+                    <th style="width: 100px;">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="horseListBody"></tbody>
+        </table>
+    </div>
+
+    <div class="controls">
+        <input type="number" id="inputJarak" placeholder="Masukkan Jarak N (1 - 8000)..." min="1" max="8000">
+        <button class="btn-run" onclick="jalankanProses()">🏇 Mulai Simulasi</button>
+        <button class="btn-reset" onclick="resetSemuaData()">🗑️ Hapus Semua Data Grafik</button>
+    </div>
+
+    <div id="winnerDisplay" class="winner-box">
+        🎉 Pemenang untuk jarak <span id="distText">0</span>m adalah:
+        <span class="winner-name" id="winnerName">-</span>
+    </div>
+
+    <div class="grid-layout">
+        <div class="card">
+            <h2>🏆 Histori Juara & Aksi</h2>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Jarak (N)</th>
+                        <th>Juara 1</th>
+                        <th>Hapus</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>⏱️ Benchmark (ms)</h2>
+            <table id="benchmarkTable">
+                <thead>
+                    <tr>
+                        <th>N</th>
+                        <th>Rekursif (Rata-rata)</th>
+                        <th>Iteratif (Rata-rata)</th>
+                    </tr>
+                </thead>
+                <tbody id="benchmarkBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card full-width">
+            <h2>📈 Grafik Perbandingan Waktu Eksekusi (High Precision)</h2>
+            <div class="chart-container">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalEdit" class="modal">
+    <div class="modal-content">
+        <h2 style="margin-top:0;">Edit Data Kuda</h2>
+        <input type="hidden" id="editId">
+        <div class="form-group">
+            <label>Nama Kuda:</label>
+            <input type="text" id="editNama">
+        </div>
+        <div class="form-group">
+            <label>Kecepatan (m/s):</label>
+            <input type="number" id="editKec" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>Stamina Maks:</label>
+            <input type="number" id="editStamina" step="1">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-reset btn-sm" onclick="tutupModal()">Batal</button>
+            <button class="btn-run btn-sm" onclick="simpanEdit()">Simpan Perubahan</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let daftarKuda = [
+        {id: 1, nama: "Symboli Kris S", kec: 19.5, stamina: 160.0},
+        {id: 2, nama: "Mejiro Ryan", kec: 18.0, stamina: 180.0},
+        {id: 3, nama: "Narita Brian", kec: 21.0, stamina: 130.0},
+        {id: 4, nama: "Winning Ticket", kec: 17.5, stamina: 190.0},
+        {id: 5, nama: "Symboli Rudolf", kec: 20.0, stamina: 155.0},
+        {id: 6, nama: "Goldship", kec: 17.0, stamina: 250.0},
+        {id: 7, nama: "Gold City", kec: 18.2, stamina: 165.0},
+        {id: 8, nama: "Fenomeno", kec: 17.8, stamina: 175.0}
+    ];
+
+    let dataHasil = []; 
+
+    let performanceChart;
+    const SAMPEL_LOOP = 5000;
+
+    window.onload = function() {
+        renderTabelKuda();
+        initChart();
+    };
+
+    function renderTabelKuda() {
+        const body = document.getElementById('horseListBody');
+        body.innerHTML = "";
+        daftarKuda.forEach(k => {
+            body.innerHTML += `
+                <tr>
+                    <td>${k.id}</td>
+                    <td>${k.nama}</td>
+                    <td>${k.kec}</td>
+                    <td>${k.stamina}</td>
+                    <td>
+                        <button class="btn-edit btn-sm" onclick="bukaModalEdit(${k.id})">✎ Edit</button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    function bukaModalEdit(id) {
+        const kuda = daftarKuda.find(k => k.id === id);
+        if(kuda) {
+            document.getElementById('editId').value = kuda.id;
+            document.getElementById('editNama').value = kuda.nama;
+            document.getElementById('editKec').value = kuda.kec;
+            document.getElementById('editStamina').value = kuda.stamina;
+            document.getElementById('modalEdit').style.display = 'block';
+        }
+    }
+
+    function tutupModal() {
+        document.getElementById('modalEdit').style.display = 'none';
+    }
+
+    function simpanEdit() {
+        const id = parseInt(document.getElementById('editId').value);
+        const nama = document.getElementById('editNama').value;
+        const kec = parseFloat(document.getElementById('editKec').value);
+        const stamina = parseFloat(document.getElementById('editStamina').value);
+
+        if(!nama || isNaN(kec) || isNaN(stamina)) {
+            alert("Data tidak boleh kosong!");
+            return;
+        }
+
+        const index = daftarKuda.findIndex(k => k.id === id);
+        if(index !== -1) {
+            daftarKuda[index] = { id, nama, kec, stamina };
+            renderTabelKuda();
+            tutupModal();
+        }
+    }
+
+    function simulasiBalapan(kuda, jarak) {
+        let posisi = 0;
+        let stamina = kuda.stamina;
+        let waktu = 0;
+        while (posisi < jarak) {
+            waktu++;
+            let vel = (stamina > 0) ? kuda.kec : kuda.kec * 0.20;
+            posisi += vel;
+            stamina -= (kuda.kec * 0.05);
+        }
+        return waktu;
+    }
+
+    function algoIteratif(jarak) {
+        let p = 0; let s = 100;
+        while(p < jarak) { p += (s > 0 ? 18 : 3.6); s -= 0.9; }
+    }
+
+    function algoRekursif(p, s, j) {
+        if(p >= j) return;
+        algoRekursif(p + (s > 0 ? 18 : 3.6), s - 0.9, j);
+    }
+
+    function jalankanProses() {
+        const jarakInput = document.getElementById('inputJarak');
+        const jarak = parseFloat(jarakInput.value);
+
+        if (!jarak || jarak < 1 || jarak > 8000) {
+            alert("⚠️ Jarak harus diisi antara 1 sampai 8000 meter!");
+            jarakInput.focus();
+            return;
+        }
+
+        let waktuTercepat = Infinity;
+        let namaJuara = "";
+        daftarKuda.forEach(k => {
+            let t = simulasiBalapan(k, jarak);
+            if(t < waktuTercepat) { waktuTercepat = t; namaJuara = k.nama; }
+        });
+
+        const winnerBox = document.getElementById('winnerDisplay');
+        winnerBox.style.display = 'none';
+        setTimeout(() => winnerBox.style.display = 'block', 10);
+        document.getElementById('distText').innerText = jarak;
+        document.getElementById('winnerName').innerText = namaJuara;
+
+        let t0 = performance.now();
+        for(let i=0; i<SAMPEL_LOOP; i++) algoIteratif(jarak);
+        let t1 = performance.now();
+        let waktuIter = (t1 - t0) / SAMPEL_LOOP;
+
+        let waktuRec;
+        let errorRec = false;
+        try {
+            let t2 = performance.now();
+            for(let i=0; i<SAMPEL_LOOP; i++) algoRekursif(0, 100, jarak);
+            let t3 = performance.now();
+            waktuRec = (t3 - t2) / SAMPEL_LOOP;
+        } catch(e) { 
+            errorRec = true; 
+        }
+
+        dataHasil.push({
+            id: Date.now(),
+            n: jarak,
+            nama: namaJuara,
+            iter: waktuIter.toFixed(6),
+            rec: errorRec ? "Stack Limit" : waktuRec.toFixed(6)
+        });
+
+        updateUI();
+    }
+
+    function hapusSatuData(idData) {
+        dataHasil = dataHasil.filter(item => item.id !== idData);
+        updateUI();
+    }
+
+    function resetSemuaData() {
+        if(confirm("Apakah Anda yakin ingin menghapus SEMUA data grafik dan histori?")) {
+            dataHasil = [];
+            document.getElementById('winnerDisplay').style.display = 'none';
+            updateUI();
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('historyBody').innerHTML = dataHasil.map((h, i) => 
+            `<tr>
+                <td>${i+1}</td>
+                <td>${h.n}m</td>
+                <td><strong>${h.nama}</strong></td>
+                <td><button class="btn-del-row" onclick="hapusSatuData(${h.id})">Hapus</button></td>
+            </tr>`).join('');
+
+        document.getElementById('benchmarkBody').innerHTML = dataHasil.map(b => 
+            `<tr>
+                <td>${b.n}</td>
+                <td style="color:var(--red)">${b.rec}</td>
+                <td style="color:var(--blue)">${b.iter}</td>
+            </tr>`).join('');
+
+        const sortedData = [...dataHasil].sort((a,b) => a.n - b.n);
+        
+        performanceChart.data.labels = sortedData.map(d => d.n + 'm');
+        performanceChart.data.datasets[0].data = sortedData.map(d => d.rec === "Stack Limit" ? null : d.rec);
+        performanceChart.data.datasets[1].data = sortedData.map(d => d.iter);
+        performanceChart.update();
+    }
+
+    function initChart() {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        performanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Metode Rekursif (ms)', borderColor: '#d93025', backgroundColor: 'rgba(217, 48, 37, 0.1)', data: [], fill: true, tension: 0.3, pointRadius: 5 },
+                    { label: 'Metode Iteratif (ms)', borderColor: '#1a73e8', backgroundColor: 'rgba(26, 115, 232, 0.1)', data: [], fill: true, tension: 0.3, pointRadius: 5 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                scales: {
+                    y: { 
+                        beginAtZero: false,
+                        title: { display: true, text: 'Waktu Rata-rata (Milidetik)' },
+                        ticks: { callback: function(value) { return value.toFixed(5); } } 
+                    },
+                    x: { title: { display: true, text: 'Jarak Tempuh (N)' } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: { label: (context) => ` ${context.dataset.label}: ${context.raw} ms` }
+                    }
+                }
+            }
+        });
+    }
+</script>
+</body>
+</html>
